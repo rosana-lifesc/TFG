@@ -1,0 +1,564 @@
+---
+title: "nema_diver"
+author: "Rosanita"
+date: "2023-03-09"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r cars}
+summary(cars)
+```
+
+## Cargamos paquetes 
+
+```{r}
+
+library(iNEXT);       # Paquete para analisis de diversidad alfa por intrapolacion y extrapolacion (metodo de Chao et al. 2014)
+library(vegan);       # Paquete para el analisis de comunidades
+library(ggplot2);     # Paquete para elaboracion de graficas (necesario para graficas de iNEXT)
+library(factoextra);  # Paquete para la visualizacion de analisis multivariantes (lo usaremos para los dendrogramas)
+library(RColorBrewer)
+library(plotly)
+
+
+```
+
+
+## Importamos los datos 
+```{r}
+datos <- read.csv2("nema_river.csv")
+datos$Tramo = factor(datos$Tramo, levels = c("1", "2", "3"))
+datos$Cuenca = factor(datos$Cuenca, levels = c("1", "2", "3", "4", "5"))
+
+# cp_csv <- read.csv2("cp+feeding.csv")
+cp_csv <- read.csv2("nema_cpanalysis.csv")
+CP <- subset(cp_csv, select = "CP_.")
+print(CP)
+#feeding <- subset(cp_csv, select = "FEEDING")
+
+datos1 <- datos[datos$Tramo != 2, ]
+```
+
+## Datos básicos y tabla resumen
+```{r}
+
+muestra <- rownames(datos1)              # Nombre de las comunidades
+nMuestras <- length(muestra)                        # Numero de comunidades
+nPlots <- as.vector(t(datos1[1,]))
+```
+
+Creamos un subset
+
+```{r}
+bichos <- subset(datos1, select = c(9:108))
+#muestra <- subset(datos1, select = c(1))
+
+nitrato <- subset(datos1, select = c("Nitratos"))
+fosfato <- subset(datos1, select = c("Fosfatos"))
+morganica <- subset(datos1, select = c("materia_organica"))
+amonio <- subset(datos1, select = c("Amonio"))
+
+bichos_d <- subset(bichos[25:37,])
+bichos_i <- subset(bichos[1:24,])
+
+#ref_bichos <- cbind(muestra, bichos)
+```
+
+```{r}
+S <- specnumber(bichos)                          # Numero de especies observado por comunidad (Hill q = 0)
+meanS <- mean(S)                                       # Numero medio de especies por comunidad
+H <- diversity(bichos, index="shannon")          # Diversidad de Shannon
+eH <- exp(H)                                          # Numero equivalente de especies (Hill q = 1)
+#Simpson <- diversity(bichos, index="invsimpson") # Dominancia de Simpson (Hill q = 2)
+#J <- H/log(S)                                          # Equitatividad de Pielou (evenness)
+```
+
+```{r}
+#diversidata <- data.frame(S,H,eH,Simpson,J)
+diversidata <- data.frame(S,H,nitrato,fosfato,morganica,amonio)
+data.frame(diversidata)
+
+nemariver_div <- cbind(datos1, diversidata)
+
+tramo <- subset(datos1, select = c(5:7, 243))
+alfa_div_plot <- cbind(tramo, diversidata)
+
+str(alfa_div_plot)
+
+as.character(alfa_div_plot$Tramo)
+as.character(alfa_div_plot$Cuenca)
+
+
+margen_d <- subset(alfa_div_plot[25:37,])
+margen_i <- subset(alfa_div_plot[1:24,])
+
+
+```
+
+
+## Gráficos
+```{r}
+
+boxplot(S ~ Tramo, data = alfa_div_plot)
+boxplot(S ~ River, data = alfa_div_plot)
+
+boxplot(H ~ Tramo, data = alfa_div_plot)
+boxplot(H ~ River, data = alfa_div_plot)
+
+#boxplot(J ~ Tramo, data = alfa_div_plot)
+#boxplot(J ~ River, data = alfa_div_plot)
+
+plot(H ~ Tramo , data = alfa_div_plot) 
+
+boxplot(H ~ Margen, data = alfa_div_plot)
+boxplot(S ~ Margen, data = alfa_div_plot)
+
+boxplot(H ~ Tramo, data = margen_d, main = "Margen Derecha")
+boxplot(H ~ Tramo, data = margen_i, main = "Margen Izquierda")
+
+
+boxplot(S ~ Tramo, data = margen_d, main = "Margen Derecha")
+boxplot(S ~ Tramo, data = margen_i, main = "Margen Izquierda")
+
+#ggplot(alfa_div_plot, aes(x=Tramo, y=S)) + geom_bar(stat='identity')
+
+```
+
+```{r}
+library(ggplot2)
+ggplot(alfa_div_plot,aes(x=River,y=H,fill=factor(Tramo)))+
+  geom_bar(stat="identity",position="dodge")+
+  scale_fill_discrete(name="Tramo",
+                      breaks=c(1, 2, 3),
+                      labels=c("Cabecera", "Medio", "Bajo"))+
+  xlab("Río")+ylab("Índice de Shannon") + scale_colour_brewer(palette = "Set3")
+
+
+
+```
+```{r}
+
+
+alfa_div_plot$S = as.numeric(alfa_div_plot$S)
+alfa_div_plot$Nitratos = as.numeric(alfa_div_plot$Nitratos)
+
+
+options(scipen=999)  # turn-off scientific notation like 1e+48
+library(ggplot2)
+theme_set(theme_bw())  # pre-set the bw theme.
+
+# midwest <- read.csv("http://goo.gl/G1K41K")  # bkup data source
+
+# Scatterplot
+gg_nitrato <- ggplot(alfa_div_plot, aes(x=Nitratos, y=S)) + 
+  geom_point(aes(col=Tramo, size=S)) + 
+  geom_smooth(method="loess", se=F) + 
+  xlim(c(0.4, 1)) + 
+  ylim(c(0, 16)) + 
+  labs(subtitle="", 
+       y="Riqueza específica", 
+       x="[Nitrato]", 
+       title="", 
+       caption = "")
+
+plot(gg_nitrato)
+
+ggH_nitrato <- ggplot(alfa_div_plot, aes(x=Nitratos, y=H)) + 
+  geom_point(aes(col=Tramo, size=S)) + 
+  geom_smooth(method="loess", se=F) + 
+  xlim(c(0.4, 1)) + 
+  ylim(c(0, 4)) + 
+  labs(subtitle="", 
+       y="Shannon", 
+       x="[Nitrato]", 
+       title="", 
+       caption = "")
+
+plot(ggH_nitrato)
+
+
+gg_morganica <- ggplot(alfa_div_plot, aes(x=materia_organica, y=S)) + 
+  geom_point(aes(col=Tramo, size=S)) + 
+  geom_smooth(method="loess", se=F) + 
+  xlim(c(0, 2)) + 
+  ylim(c(0, 20)) + 
+  labs(subtitle="", 
+       y="Riqueza específica", 
+       x="% de materia orgánica", 
+       title="", 
+       caption = "")
+
+plot(gg_morganica)
+
+options(scipen=999)  # turn-off scientific notation like 1e+48
+library(ggplot2)
+ # pre-set the bw theme.
+
+
+#FOSFATO
+gg_fosfato <- ggplot(alfa_div_plot, aes(x=Fosfatos, y=S)) +
+  geom_point(aes(col=Tramo, size=S)) +
+  geom_smooth(method="loess", se=F) +
+  xlim(c(0, 0.5)) +
+  ylim(c(0, 20)) +
+  labs(subtitle="",
+       y="RIQUEZA",
+       x="[Fosfato]",
+       title="",
+       caption = "")
+
+plot(gg_fosfato)
+
+model.Snitrato <- lm(S ~ Nitratos, alfa_div_plot)
+summary(model.Snitrato)
+
+
+model.Hnitrato <- lm(H ~ Nitratos, alfa_div_plot)
+summary(model.Snitrato)
+
+
+# pdf(file="Nitrato_alfa.pdf", width=8, height=13)
+# 
+# 
+# figure <-  ggarrange(gg_nitrato, ggH_nitrato,  ncol = 1, nrow = 2, labels = c("A", "B"), font.label = list(size = 30, color = "#0072B2"))
+# 
+# 
+# figure
+# 
+# 
+# dev.off()
+
+
+## Amonio
+
+gg_amonio <- ggplot(alfa_div_plot, aes(x=Amonio, y=H)) + 
+  geom_point(aes(col=Tramo, size=S)) + 
+  geom_smooth(method="loess", se=F) + 
+  xlim(c(0, 0.3)) + 
+  ylim(c(0, 4)) + 
+  labs(subtitle="", 
+       y="Shannon", 
+       x="[Amonio]", 
+       title="", 
+       caption = "")
+
+plot(gg_amonio)
+
+````
+
+```{r}
+gg_nitratoM <- ggplot(alfa_div_plot, aes(x=Nitratos, y=S)) + 
+  geom_point(aes(col=Margen, size=S)) + 
+  geom_smooth(method="loess", se=F) + 
+  xlim(c(0.4, 1)) + 
+  ylim(c(0, 16)) + 
+  labs(subtitle="", 
+       y="Riqueza específica", 
+       x="[Nitrato]", 
+       title="", 
+       caption = "")
+
+plot(gg_nitratoM)
+
+
+
+ggH_nitratoM <- ggplot(alfa_div_plot, aes(x=Nitratos, y=H)) + 
+  geom_point(aes(col=Margen, size=S)) + 
+  geom_smooth(method="loess", se=F) + 
+  xlim(c(0.4, 1)) + 
+  ylim(c(0, 4)) + 
+  labs(subtitle="", 
+       y="Shannon", 
+       x="[Nitrato]", 
+       title="", 
+       caption = "")
+
+plot(ggH_nitratoM)
+
+
+aov.NS <- aov(Nitratos ~ S, data = alfa_div_plot)
+summary(aov.NS)
+
+
+aov.NSH <- aov(Nitratos ~ H, data = alfa_div_plot)
+summary(aov.NSH)
+```
+
+```{r}
+g_nitrato <- ggplot(alfa_div_plot, aes(Nitratos, S))
+
+# Scatterplot
+g_nitrato + geom_point() + 
+  geom_smooth(method="lm", se=F) +
+  labs(subtitle="mpg: city vs highway mileage", 
+       y="Riqueza", 
+       x="[Nitrato]", 
+       title="a", 
+       caption="a")
+
+g_fosfato <- ggplot(alfa_div_plot, aes(Fosfatos, S))
+
+# Scatterplot
+g_fosfato + geom_point() + 
+  geom_smooth(method="lm", se=F) +
+  labs(subtitle="", 
+       y="Riqueza", 
+       x="[Fosfato]", 
+       title="", 
+       caption="")
+
+
+gH_nit <- ggplot(alfa_div_plot, aes(Nitratos, H))
+
+
+gH_nit + geom_point() + 
+  geom_smooth(method="lm", se=F) +
+  labs(subtitle="", 
+       y="Shannon", 
+       x="[Nitrato]", 
+       title="")
+
+````
+
+
+### Linear Regression
+```{r}
+
+
+model.Stramo <- lm(S ~ Tramo, alfa_div_plot)
+summary(model.Stramo)
+
+model.Htramo <- lm(H ~ Tramo, alfa_div_plot)
+summary(model.Htramo)
+
+model.Smargen <- lm(log(S+1) ~ Margen, alfa_div_plot)
+summary(model.Smargen)
+
+
+model.Hmargen <- lm(H ~ Margen, alfa_div_plot)
+summary(model.Hmargen)
+
+
+model.HmargenI <- lm(H ~ Tramo, margen_i)
+summary(model.HmargenI)
+
+
+model.HmargenD <- lm(H ~ Tramo, margen_d)
+summary(model.HmargenD)
+
+model.HmargenI
+
+`````
+### Anova
+```{r}
+install.packages("sjPlot")
+library(sjPlot)
+
+aov.margend <- aov(H ~ Tramo, data = margen_d)
+summary(aov.margend)
+
+aov.margeni <- aov(H ~ Tramo, data = margen_i)
+summary(aov.margeni)
+tab_model(aov.margeni)
+
+```
+!hay una pérdida significativa en el margen izquierdo **
+tab_model(aov.margeni)
+
+### Representando una Anova
+```{r}
+
+p <- ggplot(margen_i,aes(x=Tramo,y=H,fill=factor(Tramo)))+
+      geom_boxplot()+
+      theme_classic() +
+      scale_color_viridis_d()
+
+#p
+#p + stat_compare_mean( method = "anova")
+
+
+```
+
+
+
+### Primer intento para hacer los datos cp
+
+```{r}
+# 
+# suma_bichos_i <- colSums(bichos_i, na.rm = TRUE)
+# suma_bichos_d <- colSums(bichos_d, na.rm = TRUE)
+# 
+# bichos_cp_d <- cbind(data.frame(suma_bichos_d), CP)
+# bichos_cp_i <- cbind(data.frame(suma_bichos_i), CP)
+# 
+# 
+# bichos_feed_d <- cbind(data.frame(suma_bichos_d), feeding)
+# bichos_feed_i <- cbind(data.frame(suma_bichos_i), feeding)
+# 
+# 
+# 
+# tabla_i <- bichos_cp_i[order(bichos_cp_i$suma_bichos_i),]
+# tabla_d <- bichos_cp_d[order(bichos_cp_d$suma_bichos_d),]
+# 
+# tabla_feed_i <- bichos_feed_i[order(bichos_feed_i$suma_bichos_i),]
+# tabla_feed_d <- bichos_feed_d[order(bichos_feed_d$suma_bichos_d),]
+
+
+```
+
+
+```{r}
+# 
+# ggplot(tabla_d, aes(x=CP, y=suma_bichos_d)) + 
+#   geom_bar(stat = 'identity')
+# ggplot(tabla_i, aes(x=CP, y=suma_bichos_i)) + 
+#   geom_bar(stat = "identity")
+#   
+# 
+# ggplot(tabla_feed_d, aes(x=FEEDING, y=suma_bichos_d)) + 
+#   geom_bar(stat = 'identity')
+# ggplot(tabla_feed_i, aes(x=FEEDING, y=suma_bichos_i)) + 
+#   geom_bar(stat = "identity")
+# 
+
+```
+
+### Segundo intento
+Here I analyse the ecology of the different groups according to their cp index
+```{r}
+cp_analysis <- subset(cp_csv[,5:16])
+#cp_analysis2 <- cp_analysis1[cp_analysis1$TraMo != 2, ]
+#cp_analysis <- drop_na(cp_analysis1)
+
+cp_izquierda <- subset(cp_analysis, Margen %in% c("Izquierda"))
+cp_derecha <- subset(cp_analysis, Margen %in% c("Derecha"))
+
+cp_derecha_1 <- subset(cp_derecha, TraMo %in% c("1"))
+#cp_derecha_2 <- subset(cp_derecha, TraMo %in% c("2"))
+cp_derecha_3 <- subset(cp_derecha, TraMo %in% c("3"))
+
+cp_izquierda_1 <- subset(cp_izquierda, TraMo %in% c("1"))
+#cp_izquierda_2 <- subset(cp_izquierda, TraMo %in% c("2"))
+cp_izquierda_3 <- subset(cp_izquierda, TraMo %in% c("3"))
+
+boxplot(CP_. ~ CP_i, data = cp_analysis)
+boxplot(CP_. ~ CP_i, data = cp_izquierda, main = "Margen Izquierda")
+boxplot(CP_. ~ CP_i, data = cp_derecha, main = "Margen Derecha")
+
+boxplot(CP_. ~ CP_i, data = cp_derecha_1, main = "Margen Derecha 1")
+#boxplot(CP_. ~ CP_i, data = cp_derecha_2, main = "Margen Derecha 2")
+boxplot(CP_. ~ CP_i, data = cp_derecha_3, main = "Margen Derecha 3")
+boxplot(CP_. ~ CP_i, data = cp_izquierda_1, main = "Margen Izquierda 1")
+boxplot(CP_. ~ CP_i, data = cp_izquierda_3, main = "Margen Izquierda 3")
+
+````
+
+### Feeding habits
+Here I analyse and study the different feeding habits present in the nematodes groups studied
+
+```{r}
+
+feeding_izquierda <- subset(cp_analysis, Margen %in% c("Izquierda"))
+feeding_derecha <- subset(cp_analysis, Margen %in% c("Derecha"))
+
+feeding_derecha_1 <- subset(feeding_derecha, TraMo %in% c("1"))
+feeding_derecha_3 <- subset(feeding_derecha, TraMo %in% c("3"))
+
+feeding_izquierda_1 <- subset(feeding_izquierda, TraMo %in% c("1"))
+feeding_izquierda_3 <- subset(feeding_izquierda, TraMo %in% c("3"))
+
+
+boxplot(Feeding_. ~ Feeding_i, data = cp_analysis)
+boxplot(Feeding_. ~ Feeding_i, data = feeding_izquierda, main = "Margen Izquierda")
+boxplot(Feeding_. ~ Feeding_i, data = feeding_derecha, main = "Margen Derecha")
+
+boxplot(Feeding_. ~ Feeding_i, data = feeding_derecha_1, main = "Margen Derecha 1")
+boxplot(Feeding_. ~ Feeding_i, data = feeding_derecha_3, main = "Margen Derecha 3")
+boxplot(Feeding_. ~ Feeding_i, data = feeding_izquierda_1, main = "Margen Izquierda 1")
+boxplot(Feeding_. ~ Feeding_i, data = feeding_izquierda_3, main = "Margen Izquierda 3")
+
+
+```
+
+
+### Data visualisation
+Here I try to make the last plots look prettier and easier to understand
+
+```{r}
+
+````
+
+```{r}
+#str(cp_derecha)
+cp_plot_d <-
+  ggplot(cp_derecha, aes(x = CP_i, y = CP_., fill = factor(TraMo))) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_discrete(
+    name = "Tramo",
+    breaks = c(1, 3),
+    labels = c("Cabecera", "Bajo")
+  ) +
+  xlab("Índice CP") + ylab("Abundancia") + ggtitle("Margen Conservada") + scale_colour_brewer(palette = "Set3")
+
+cp_plot_d
+````
+
+```{r}
+#is.na(cp_izquierda)
+#str(cp_izquierda)
+
+cp_izquierda$CP_. = as.numeric(cp_izquierda$CP_.)
+cp_izquierda$CP_i = as.numeric(cp_izquierda$CP_i)
+cp_izquierda$TraMo = as.numeric(cp_izquierda$TraMo)
+
+cp_plot_i <-
+  ggplot(cp_izquierda,
+         aes(x = CP_i, y = CP_., fill = factor(TraMo))) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_discrete(
+    name = "Tramo",
+    breaks = c(1, 3),
+    labels = c("Cabecera", "Bajo")
+  ) +
+  xlab("Índice CP ") + ylab("Abundancia") + ggtitle("Margen Alterado") +
+  scale_colour_brewer(palette = "Set3")
+  
+cp_plot_i
+cp_plot_d
+````
+
+```{r}
+feed_plot_d <-
+  ggplot(cp_derecha, aes(x = Feeding_i, y = Feeding_., fill = factor(TraMo))) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_discrete(
+    name = "Tramo",
+    breaks = c(1, 3),
+    labels = c("Cabecera", "Bajo")
+  ) +
+  xlab("Hábito alimenticio") + ylab("Abundancia") + ggtitle("Margen Conservada") + scale_colour_brewer(palette = "Set3")
+
+feed_plot_d
+
+feed_plot_i <-
+  ggplot(cp_izquierda, aes(x = Feeding_i, y = Feeding_., fill = factor(TraMo))) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_discrete(
+    name = "Tramo",
+    breaks = c(1, 3),
+    labels = c("Cabecera", "Bajo")
+  ) +
+  xlab("Hábito alimenticio") + ylab("Abundancia") + ggtitle("Margen Alterado") + scale_colour_brewer(palette = "Set3")
+
+feed_plot_i
+````
+
+
+
